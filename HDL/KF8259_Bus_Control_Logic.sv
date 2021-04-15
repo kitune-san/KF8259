@@ -14,7 +14,7 @@ module KF8259_Bus_Control_Logic (
     input   logic           address,
     input   logic   [7:0]   data_bus_in,
 
-    // Control Signals
+    // Internal Bus
     output  logic   [7:0]   internal_data_bus,
     output  logic           write_initial_command_word_1,
     output  logic           write_initial_command_word_2_4,
