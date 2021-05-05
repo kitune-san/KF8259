@@ -11,6 +11,7 @@ module KF8259_In_Service (
 
     // Inputs
     input   logic   [2:0]   priority_rotate,
+    input   logic   [7:0]   interrupt_special_mask,
     input   logic   [7:0]   interrupt,
     input   logic           start_in_service,
     input   logic   [7:0]   end_of_interrupt,
@@ -44,7 +45,7 @@ module KF8259_In_Service (
     logic   [7:0]   next_highest_level_in_service;
 
     always_comb begin
-        next_highest_level_in_service = next_in_service_register;
+        next_highest_level_in_service = next_in_service_register & ~interrupt_special_mask;
         next_highest_level_in_service = rotate_right(next_highest_level_in_service, priority_rotate);
         next_highest_level_in_service = resolv_priority(next_highest_level_in_service);
         next_highest_level_in_service = rotate_left(next_highest_level_in_service, priority_rotate);
