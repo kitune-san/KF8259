@@ -13,7 +13,7 @@ module KF8259_In_Service (
     input   logic   [2:0]   priority_rotate,
     input   logic   [7:0]   interrupt_special_mask,
     input   logic   [7:0]   interrupt,
-    input   logic           start_in_service,
+    input   logic           latch_in_service,
     input   logic   [7:0]   end_of_interrupt,
 
     // Outputs
@@ -30,7 +30,7 @@ module KF8259_In_Service (
     logic   [7:0]   next_in_service_register;
 
     assign next_in_service_register = (in_service_register & ~end_of_interrupt)
-                                     | (start_in_service == 1'b1 ? interrupt : 8'b00000000);
+                                     | (latch_in_service == 1'b1 ? interrupt : 8'b00000000);
 
     always_ff @(negedge clock, posedge reset) begin
         if (reset)
