@@ -226,7 +226,7 @@ module KF8259 (
     end
 
     // Read buffer enable signal
-    assign  buffer_enable = (slave_program_or_enable_buffer == 1'b1) ? 1'b0 : data_bus_io;
+    assign  buffer_enable = (slave_program_or_enable_buffer == 1'b1) ? 1'b0 : ~data_bus_io;
 
 endmodule
 
