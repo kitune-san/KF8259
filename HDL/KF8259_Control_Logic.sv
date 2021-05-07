@@ -483,7 +483,9 @@ module KF8259_Control_Logic (
 
     // Slave output acknowlede data now
     always_comb begin
-        if (cascade_slave == 1'b1)
+        if (single_or_cascade_config == 1'b1)
+            cascade_output_ack_2_3 = 1'b1;
+        else if (cascade_slave == 1'b1)
             cascade_output_ack_2_3 = 1'b1;
         else if ((acknowledge_interrupt & cascade_device_config) == 8'b00000000)
             cascade_output_ack_2_3 = 1'b1;
