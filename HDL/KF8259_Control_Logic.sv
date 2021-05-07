@@ -545,7 +545,7 @@ module KF8259_Control_Logic (
         else if (latch_in_service == 1'b1)
             acknowledge_interrupt <= interrupt;
         else
-            acknowledge_interrupt <= interrupt;
+            acknowledge_interrupt <= acknowledge_interrupt;
     end
 
     // control_logic_data
