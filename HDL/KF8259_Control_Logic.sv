@@ -76,6 +76,7 @@ module KF8259_Control_Logic (
     logic   [7:0]   acknowledge_interrupt;
 
     logic           cascade_slave;
+    logic           cascade_slave_enable;
     logic           cascade_output_ack_2_3;
 
     //
@@ -167,8 +168,12 @@ module KF8259_Control_Logic (
                     next_control_state = WAIT_ACK;
                 else if ((write_operation_control_word_3_registers == 1'b1) && (internal_data_bus[2] == 1'b1))
                     next_control_state = POLL;
-                else
+                else if (cascade_slave == 1'b0)
                     next_control_state = ACK1;
+                else if (cascade_slave_enable == 1'b0)
+                    next_control_state = WAIT_ACK;
+                else
+                    next_control_state = ACK2;
             end
             ACK1: begin
                 if (pedge_interrupt_acknowledge == 1'b0)
@@ -210,12 +215,7 @@ module KF8259_Control_Logic (
     end
 
     // Latch in service register signal
-    always_comb begin
-        if (cascade_slave == 1'b0)
-            latch_in_service = (control_state == WAIT_ACK) & (next_control_state != WAIT_ACK);
-        else
-            latch_in_service = (cascade_device_config[2:0] == cascade_in) & (control_state == ACK2) & (nedge_interrupt_acknowledge == 1'b1);
-    end
+    assign  latch_in_service = (control_state == WAIT_ACK) & (next_control_state != WAIT_ACK);
 
     // End of acknowledge sequence
     wire    end_of_acknowledge_sequence =  (control_state != POLL) & (control_state != CTL_READY) & (next_control_state == CTL_READY);
@@ -481,13 +481,30 @@ module KF8259_Control_Logic (
     // Cascade port I/O
     assign cascade_io = cascade_slave;
 
+    //
+    // Cascade signals (slave)
+    //
+    always_comb begin
+        if (cascade_slave == 1'b0)
+            cascade_slave_enable = 1'b0;
+        else if (cascade_device_config[2:0] != cascade_in)
+            cascade_slave_enable = 1'b0;
+        else
+            cascade_slave_enable = 1'b1;
+    end
+
+    //
+    // Cascade signals (master)
+    //
+    wire    interrupt_from_slave_device = (acknowledge_interrupt & cascade_device_config) != 8'b00000000;
+
     // Slave output acknowlede data now
     always_comb begin
         if (single_or_cascade_config == 1'b1)
             cascade_output_ack_2_3 = 1'b1;
         else if (cascade_slave == 1'b1)
             cascade_output_ack_2_3 = 1'b1;
-        else if ((acknowledge_interrupt & cascade_device_config) == 8'b00000000)
+        else if (interrupt_from_slave_device == 1'b0)
             cascade_output_ack_2_3 = 1'b1;
         else
             cascade_output_ack_2_3 = 1'b0;
@@ -499,9 +516,9 @@ module KF8259_Control_Logic (
             cascade_out <= 3'b000;
         else if (cascade_slave == 1'b1)
             cascade_out <= 3'b000;
-        else if ((control_state == CTL_READY)  && (control_state == WAIT_ACK))
+        else if ((control_state != ACK1) && (control_state != ACK2) && (control_state != ACK3))
             cascade_out <= 3'b000;
-        else if ((acknowledge_interrupt & cascade_device_config) == 8'b00000000)
+        else if (interrupt_from_slave_device == 1'b0)
             cascade_out <= 3'b000;
         else
             cascade_out <= bit2num(acknowledge_interrupt);
