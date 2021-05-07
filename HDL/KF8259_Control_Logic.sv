@@ -93,11 +93,13 @@ module KF8259_Control_Logic (
                 WRITE_ICW2: begin
                     if (single_or_cascade_config == 1'b0)
                         next_command_state = WRITE_ICW3;
-                    else
+                    else if (set_icw4_config == 1'b1)
                         next_command_state = WRITE_ICW4;
+                    else
+                        next_command_state = CMD_READY;
                 end
                 WRITE_ICW3: begin
-                    if (set_icw4_config == 1'b0)
+                    if (set_icw4_config == 1'b1)
                         next_command_state = WRITE_ICW4;
                     else
                         next_command_state = CMD_READY;
