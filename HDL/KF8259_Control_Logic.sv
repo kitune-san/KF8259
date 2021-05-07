@@ -91,7 +91,7 @@ module KF8259_Control_Logic (
         else if (write_initial_command_word_2_4 == 1'b1) begin
             casez (command_state)
                 WRITE_ICW2: begin
-                    if (internal_data_bus[1] == 1'b0)
+                    if (single_or_cascade_config == 1'b0)
                         next_command_state = WRITE_ICW3;
                     else
                         next_command_state = WRITE_ICW4;
