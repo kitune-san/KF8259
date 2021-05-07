@@ -416,7 +416,7 @@ module KF8259_Control_Logic (
     // Rotate
     always_ff @(negedge clock, posedge reset) begin
         if (reset)
-            priority_rotate <= 3'b11;
+            priority_rotate <= 3'b111;
         else if ((auto_rotate_mode == 1'b1) && (end_of_acknowledge_sequence == 1'b1))
             priority_rotate <= bit2num(acknowledge_interrupt);
         else if (write_operation_control_word_2 == 1'b1) begin
