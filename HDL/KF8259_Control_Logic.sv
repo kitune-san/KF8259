@@ -582,7 +582,7 @@ module KF8259_Control_Logic (
     // interrupt buffer
     logic   [7:0]   interrupt_when_ack1;
 
-    always_comb begin
+    always_ff @(negedge clock, posedge reset) begin
         if (reset)
             interrupt_when_ack1 <= 8'b00000000;
         else if (control_state == ACK1)
