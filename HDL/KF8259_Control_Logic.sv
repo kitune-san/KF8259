@@ -383,11 +383,10 @@ module KF8259_Control_Logic (
     always_ff @(negedge clock, posedge reset) begin
         if (reset)
             interrupt_special_mask <= 8'b00000000;
-        else if ((write_operation_control_word_1_registers  == 1'b1) && (enable_special_mask_mode == 1'b1))
-            if (special_mask_mode == 1'b0)
-                interrupt_special_mask <= 8'b00000000;
-            else
-                interrupt_special_mask <= internal_data_bus;
+        else if ((enable_special_mask_mode == 1'b1) && (special_mask_mode == 1'b0))
+            interrupt_special_mask <= 8'b00000000;
+        else if ((enable_special_mask_mode == 1'b1) && (write_operation_control_word_1_registers  == 1'b1))
+            interrupt_special_mask <= internal_data_bus;
         else
             interrupt_special_mask <= interrupt_special_mask;
     end
