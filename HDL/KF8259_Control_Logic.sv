@@ -150,24 +150,35 @@ module KF8259_Control_Logic (
     wire    nedge_interrupt_acknowledge =  prev_interrupt_acknowledge_n & ~interrupt_acknowledge_n;
     wire    pedge_interrupt_acknowledge = ~prev_interrupt_acknowledge_n &  interrupt_acknowledge_n;
 
+    // Detect read signal edge
+    logic   prev_read_signal;
+
+    always_ff @(negedge clock, posedge reset) begin
+        if (reset)
+            prev_read_signal <= 1'b0;
+        else
+            prev_read_signal <= read;
+    end
+    wire    nedge_read_signal = prev_read_signal & ~read;
+
     // State machine
     always_comb begin
         casez (control_state)
             CTL_READY: begin
-                if (interrupt == 8'b00000000)
+                if ((write_operation_control_word_3_registers == 1'b1) && (internal_data_bus[2] == 1'b1))
+                    next_control_state = POLL;
+                else if (interrupt == 8'b00000000)
                     next_control_state = CTL_READY;
                 else if (write_operation_control_word_2_registers == 1'b1)
                     next_control_state = CTL_READY;
-                else if ((write_operation_control_word_3_registers == 1'b1) && (internal_data_bus[2] == 1'b1))
-                    next_control_state = POLL;
                 else
                     next_control_state = WAIT_ACK;
             end
             WAIT_ACK: begin
-                if (nedge_interrupt_acknowledge == 1'b0)
-                    next_control_state = WAIT_ACK;
-                else if ((write_operation_control_word_3_registers == 1'b1) && (internal_data_bus[2] == 1'b1))
+                if ((write_operation_control_word_3_registers == 1'b1) && (internal_data_bus[2] == 1'b1))
                     next_control_state = POLL;
+                else if (nedge_interrupt_acknowledge == 1'b0)
+                    next_control_state = WAIT_ACK;
                 else if (cascade_slave == 1'b0)
                     next_control_state = ACK1;
                 else if (cascade_slave_enable == 1'b0)
@@ -196,7 +207,7 @@ module KF8259_Control_Logic (
                     next_control_state = CTL_READY;
             end
             POLL: begin
-                if (read == 1'b0)
+                if (nedge_read_signal == 1'b0)
                     next_control_state = POLL;
                 else
                     next_control_state = CTL_READY;
@@ -219,6 +230,7 @@ module KF8259_Control_Logic (
 
     // End of acknowledge sequence
     wire    end_of_acknowledge_sequence =  (control_state != POLL) & (control_state != CTL_READY) & (next_control_state == CTL_READY);
+    wire    end_of_poll_command         =  (control_state == POLL) & (control_state != CTL_READY) & (next_control_state == CTL_READY);
 
     //
     // Initialization command word 1
@@ -533,6 +545,8 @@ module KF8259_Control_Logic (
             interrupt_to_cpu <= 1'b0;
         else if (next_control_state == CTL_READY)
             interrupt_to_cpu <= 1'b0;
+        else if (next_control_state == POLL)
+            interrupt_to_cpu <= interrupt_to_cpu;
         else
             interrupt_to_cpu <= 1'b1;
     end
@@ -564,6 +578,8 @@ module KF8259_Control_Logic (
         if (reset)
             acknowledge_interrupt <= 8'b00000000;
         else if (end_of_acknowledge_sequence)
+            acknowledge_interrupt <= 8'b00000000;
+        else if (end_of_poll_command == 1'b1)
             acknowledge_interrupt <= 8'b00000000;
         else if (latch_in_service == 1'b1)
             acknowledge_interrupt <= interrupt;
@@ -651,11 +667,12 @@ module KF8259_Control_Logic (
         else if ((control_state == POLL) && (read == 1'b1)) begin
             // Poll command
             out_control_logic_data = 1'b1;
-            control_logic_data[2:0] = bit2num(interrupt);
-            if (interrupt == 8'b00000000)
-                control_logic_data[7:3] = 5'b00000;
-            else
+            if (acknowledge_interrupt == 8'b00000000)
+                control_logic_data = 8'b000000000;
+            else begin
                 control_logic_data[7:3] = 5'b10000;
+                control_logic_data[2:0] = bit2num(acknowledge_interrupt);
+            end
         end
         else begin
             // Nothing
