@@ -522,10 +522,8 @@ module KF8259_Control_Logic (
     end
 
     // Output slave id
-    always_ff @(negedge clock, posedge reset) begin
-        if (reset)
-            cascade_out <= 3'b000;
-        else if (cascade_slave == 1'b1)
+    always_comb begin
+        if (cascade_slave == 1'b1)
             cascade_out <= 3'b000;
         else if ((control_state != ACK1) && (control_state != ACK2) && (control_state != ACK3))
             cascade_out <= 3'b000;
