@@ -58,7 +58,7 @@ module KF8259_Control_Logic (
 
     // State
     typedef enum {CMD_READY, WRITE_ICW2, WRITE_ICW3, WRITE_ICW4} command_state_t;
-    typedef enum {CTL_READY, WAIT_ACK, ACK1, ACK2, ACK3, POLL}   control_state_t;
+    typedef enum {CTL_READY, ACK1, ACK2, ACK3, POLL}   control_state_t;
 
     // Registers
     logic   [10:0]  interrupt_vector_address;
@@ -167,24 +167,12 @@ module KF8259_Control_Logic (
             CTL_READY: begin
                 if ((write_operation_control_word_3_registers == 1'b1) && (internal_data_bus[2] == 1'b1))
                     next_control_state = POLL;
-                else if (interrupt == 8'b00000000)
-                    next_control_state = CTL_READY;
                 else if (write_operation_control_word_2_registers == 1'b1)
                     next_control_state = CTL_READY;
-                else
-                    next_control_state = WAIT_ACK;
-            end
-            WAIT_ACK: begin
-                if ((write_operation_control_word_3_registers == 1'b1) && (internal_data_bus[2] == 1'b1))
-                    next_control_state = POLL;
                 else if (nedge_interrupt_acknowledge == 1'b0)
-                    next_control_state = WAIT_ACK;
-                else if (cascade_slave == 1'b0)
-                    next_control_state = ACK1;
-                else if (cascade_slave_enable == 1'b0)
-                    next_control_state = WAIT_ACK;
+                    next_control_state = CTL_READY;
                 else
-                    next_control_state = ACK2;
+                    next_control_state = ACK1;
             end
             ACK1: begin
                 if (pedge_interrupt_acknowledge == 1'b0)
@@ -226,7 +214,14 @@ module KF8259_Control_Logic (
     end
 
     // Latch in service register signal
-    assign  latch_in_service = (control_state == WAIT_ACK) & (next_control_state != WAIT_ACK);
+    always_comb begin
+        if ((control_state == CTL_READY) && (next_control_state == POLL))
+            latch_in_service = 1'b1;
+        else if (cascade_slave == 1'b0)
+            latch_in_service = (control_state == CTL_READY) & (next_control_state != CTL_READY);
+        else
+            latch_in_service = (control_state == ACK2) & (cascade_slave_enable == 1'b1) & (nedge_interrupt_acknowledge == 1'b1);
+    end
 
     // End of acknowledge sequence
     wire    end_of_acknowledge_sequence =  (control_state != POLL) & (control_state != CTL_READY) & (next_control_state == CTL_READY);
@@ -509,13 +504,13 @@ module KF8259_Control_Logic (
     //
     wire    interrupt_from_slave_device = (acknowledge_interrupt & cascade_device_config) != 8'b00000000;
 
-    // Slave output acknowlede data now
+    // output ACK2 and ACK3
     always_comb begin
         if (single_or_cascade_config == 1'b1)
             cascade_output_ack_2_3 = 1'b1;
-        else if (cascade_slave == 1'b1)
+        else if (cascade_slave_enable == 1'b1)
             cascade_output_ack_2_3 = 1'b1;
-        else if (interrupt_from_slave_device == 1'b0)
+        else if ((cascade_slave == 1'b0) && (interrupt_from_slave_device == 1'b0))
             cascade_output_ack_2_3 = 1'b1;
         else
             cascade_output_ack_2_3 = 1'b0;
@@ -540,12 +535,14 @@ module KF8259_Control_Logic (
     always_ff @(negedge clock, posedge reset) begin
         if (reset)
             interrupt_to_cpu <= 1'b0;
-        else if (next_control_state == CTL_READY)
-            interrupt_to_cpu <= 1'b0;
-        else if (next_control_state == POLL)
-            interrupt_to_cpu <= interrupt_to_cpu;
-        else
+        else if (interrupt != 8'b00000000)
             interrupt_to_cpu <= 1'b1;
+        else if (end_of_acknowledge_sequence == 1'b1)
+            interrupt_to_cpu <= 1'b0;
+        else if (end_of_poll_command == 1'b1)
+            interrupt_to_cpu <= 1'b0;
+        else
+            interrupt_to_cpu <= interrupt_to_cpu;
     end
 
     // freeze
@@ -553,8 +550,6 @@ module KF8259_Control_Logic (
         if (reset)
             freeze <= 1'b1;
         else if (next_control_state == CTL_READY)
-            freeze <= 1'b0;
-        else if (next_control_state == WAIT_ACK)
             freeze <= 1'b0;
         else
             freeze <= 1'b1;
@@ -570,7 +565,7 @@ module KF8259_Control_Logic (
             clear_interrupt_request = interrupt;
     end
 
-    // 
+    // interrupt buffer
     always_ff @(negedge clock, posedge reset) begin
         if (reset)
             acknowledge_interrupt <= 8'b00000000;
@@ -584,16 +579,24 @@ module KF8259_Control_Logic (
             acknowledge_interrupt <= acknowledge_interrupt;
     end
 
+    // interrupt buffer
+    logic   [7:0]   interrupt_when_ack1;
+
+    always_comb begin
+        if (reset)
+            interrupt_when_ack1 <= 8'b00000000;
+        else if (control_state == ACK1)
+            interrupt_when_ack1 <= interrupt;
+        else
+            interrupt_when_ack1 <= interrupt_when_ack1;
+    end
+
     // control_logic_data
     always_comb begin
         if (interrupt_acknowledge_n == 1'b0) begin
             // Acknowledge
             casez (control_state)
                 CTL_READY: begin
-                    out_control_logic_data = 1'b0;
-                    control_logic_data     = 8'b00000000;
-                end
-                WAIT_ACK: begin
                     if (cascade_slave == 1'b0) begin
                         if (u8086_or_mcs80_config == 1'b0) begin
                             out_control_logic_data = 1'b1;
@@ -628,7 +631,11 @@ module KF8259_Control_Logic (
                 ACK2: begin
                     if (cascade_output_ack_2_3 == 1'b1) begin
                         out_control_logic_data = 1'b1;
-                        control_logic_data[2:0] = bit2num(acknowledge_interrupt);
+
+                        if (cascade_slave == 1'b1)
+                            control_logic_data[2:0] = bit2num(interrupt_when_ack1);
+                        else
+                            control_logic_data[2:0] = bit2num(acknowledge_interrupt);
 
                         if (u8086_or_mcs80_config == 1'b0) begin
                             if (call_address_interval_4_or_8_config == 1'b0)
