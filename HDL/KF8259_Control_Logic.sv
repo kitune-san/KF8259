@@ -10,8 +10,8 @@ module KF8259_Control_Logic (
     input   logic           reset,
 
     // External input/output
-    input   logic   [3:0]   cascade_in,
-    output  logic   [3:0]   cascade_out,
+    input   logic   [2:0]   cascade_in,
+    output  logic   [2:0]   cascade_out,
     output  logic           cascade_io,
 
     input   logic           slave_program_n,

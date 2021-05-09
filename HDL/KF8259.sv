@@ -17,8 +17,8 @@ module KF8259 (
     output  logic           data_bus_io,
 
     // I/O
-    input   logic   [3:0]   cascade_in,
-    output  logic   [3:0]   cascade_out,
+    input   logic   [2:0]   cascade_in,
+    output  logic   [2:0]   cascade_out,
     output  logic           cascade_io,
 
     input   logic           slave_program_n,
