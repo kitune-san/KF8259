@@ -209,13 +209,17 @@ module KF8259_Control_Logic (
     always_ff @(negedge clock, posedge reset) begin
         if (reset)
             control_state <= CTL_READY;
+        else if (write_initial_command_word_1 == 1'b1)
+            control_state <= CTL_READY;
         else
             control_state <= next_control_state;
     end
 
     // Latch in service register signal
     always_comb begin
-        if ((control_state == CTL_READY) && (next_control_state == POLL))
+        if (write_initial_command_word_1 == 1'b1)
+            latch_in_service = 1'b0;
+        else if ((control_state == CTL_READY) && (next_control_state == POLL))
             latch_in_service = 1'b1;
         else if (cascade_slave == 1'b0)
             latch_in_service = (control_state == CTL_READY) & (next_control_state != CTL_READY);
@@ -287,6 +291,8 @@ module KF8259_Control_Logic (
     always_ff @(negedge clock, posedge reset) begin
         if (reset)
             interrupt_vector_address[10:3] <= 3'b000;
+        else if (write_initial_command_word_1 == 1'b1)
+            interrupt_vector_address[10:3] <= 3'b000;
         else if (write_initial_command_word_2 == 1'b1)
             interrupt_vector_address[10:3] <= internal_data_bus;
         else
@@ -299,6 +305,8 @@ module KF8259_Control_Logic (
     // S7-S0 (MASTER) or ID2-ID0 (SLAVE)
     always_ff @(negedge clock, posedge reset) begin
         if (reset)
+            cascade_device_config <= 8'b00000000;
+        else if (write_initial_command_word_1 == 1'b1)
             cascade_device_config <= 8'b00000000;
         else if (write_initial_command_word_3 == 1'b1)
             cascade_device_config <= internal_data_bus;
@@ -313,6 +321,8 @@ module KF8259_Control_Logic (
     always_ff @(negedge clock, posedge reset) begin
         if (reset)
             special_fully_nest_config <= 1'b0;
+        else if (write_initial_command_word_1 == 1'b1)
+            special_fully_nest_config <= 1'b0;
         else if (write_initial_command_word_4 == 1'b1)
             special_fully_nest_config <= internal_data_bus[4];
         else
@@ -322,6 +332,8 @@ module KF8259_Control_Logic (
     // BUF
     always_ff @(negedge clock, posedge reset) begin
         if (reset)
+            buffered_mode_config <= 1'b0;
+        else if (write_initial_command_word_1 == 1'b1)
             buffered_mode_config <= 1'b0;
         else if (write_initial_command_word_4 == 1'b1)
             buffered_mode_config <= internal_data_bus[3];
@@ -335,6 +347,8 @@ module KF8259_Control_Logic (
     always_ff @(negedge clock, posedge reset) begin
         if (reset)
             buffered_master_or_slave_config <= 1'b0;
+        else if (write_initial_command_word_1 == 1'b1)
+            buffered_master_or_slave_config <= 1'b0;
         else if (write_initial_command_word_4 == 1'b1)
             buffered_master_or_slave_config <= internal_data_bus[2];
         else
@@ -345,6 +359,8 @@ module KF8259_Control_Logic (
     always_ff @(negedge clock, posedge reset) begin
         if (reset)
             auto_eoi_config <= 1'b0;
+        else if (write_initial_command_word_1 == 1'b1)
+            auto_eoi_config <= 1'b0;
         else if (write_initial_command_word_4 == 1'b1)
             auto_eoi_config <= internal_data_bus[1];
         else
@@ -354,6 +370,8 @@ module KF8259_Control_Logic (
     // uPM
     always_ff @(negedge clock, posedge reset) begin
         if (reset)
+            u8086_or_mcs80_config <= 1'b0;
+        else if (write_initial_command_word_1 == 1'b1)
             u8086_or_mcs80_config <= 1'b0;
         else if (write_initial_command_word_4 == 1'b1)
             u8086_or_mcs80_config <= internal_data_bus[0];
@@ -368,6 +386,8 @@ module KF8259_Control_Logic (
     always_ff @(negedge clock, posedge reset) begin
         if (reset)
             interrupt_mask <= 8'b11111111;
+        else if (write_initial_command_word_1 == 1'b1)
+            interrupt_mask <= 8'b11111111;
         else if ((write_operation_control_word_1_registers == 1'b1) && (enable_special_mask_mode == 1'b0))
             interrupt_mask <= internal_data_bus;
         else
@@ -377,6 +397,8 @@ module KF8259_Control_Logic (
     // Special mask
     always_ff @(negedge clock, posedge reset) begin
         if (reset)
+            interrupt_special_mask <= 8'b00000000;
+        else if (write_initial_command_word_1 == 1'b1)
             interrupt_special_mask <= 8'b00000000;
         else if ((enable_special_mask_mode == 1'b1) && (special_mask_mode == 1'b0))
             interrupt_special_mask <= 8'b00000000;
@@ -391,7 +413,9 @@ module KF8259_Control_Logic (
     //
     // End of interrupt
     always_comb begin
-        if ((auto_eoi_config == 1'b1) && (end_of_acknowledge_sequence == 1'b1))
+        if (write_initial_command_word_1 == 1'b1)
+            end_of_interrupt = 8'b11111111;
+        else if ((auto_eoi_config == 1'b1) && (end_of_acknowledge_sequence == 1'b1))
             end_of_interrupt = acknowledge_interrupt;
         else if (write_operation_control_word_2 == 1'b1) begin
             casez (internal_data_bus[6:5])
@@ -408,6 +432,8 @@ module KF8259_Control_Logic (
     always_ff @(negedge clock, posedge reset) begin
         if (reset)
             auto_rotate_mode <= 1'b0;
+        else if (write_initial_command_word_1 == 1'b1)
+            auto_rotate_mode <= 1'b0;
         else if (write_operation_control_word_2 == 1'b1) begin
             casez (internal_data_bus[7:5])
                 3'b000:  auto_rotate_mode <= 1'b0;
@@ -422,6 +448,8 @@ module KF8259_Control_Logic (
     // Rotate
     always_ff @(negedge clock, posedge reset) begin
         if (reset)
+            priority_rotate <= 3'b111;
+        else if (write_initial_command_word_1 == 1'b1)
             priority_rotate <= 3'b111;
         else if ((auto_rotate_mode == 1'b1) && (end_of_acknowledge_sequence == 1'b1))
             priority_rotate <= bit2num(acknowledge_interrupt);
@@ -445,6 +473,10 @@ module KF8259_Control_Logic (
             enable_special_mask_mode <= 1'b0;
             special_mask_mode        <= 1'b0;
         end
+        else if (write_initial_command_word_1 == 1'b1) begin
+            enable_special_mask_mode <= 1'b0;
+            special_mask_mode        <= 1'b0;
+        end
         else if (write_operation_control_word_3_registers == 1'b1) begin
             enable_special_mask_mode <= internal_data_bus[6];
             special_mask_mode        <= internal_data_bus[5];
@@ -458,6 +490,10 @@ module KF8259_Control_Logic (
     // RR/RIS
     always_ff @(negedge clock, posedge reset) begin
         if (reset) begin
+            enable_read_register     <= 1'b1;
+            read_register_isr_or_irr <= 1'b0;
+        end
+        else if (write_initial_command_word_1 == 1'b1) begin
             enable_read_register     <= 1'b1;
             read_register_isr_or_irr <= 1'b0;
         end
@@ -535,6 +571,8 @@ module KF8259_Control_Logic (
     always_ff @(negedge clock, posedge reset) begin
         if (reset)
             interrupt_to_cpu <= 1'b0;
+        else if (write_initial_command_word_1 == 1'b1)
+            interrupt_to_cpu <= 1'b0;
         else if (interrupt != 8'b00000000)
             interrupt_to_cpu <= 1'b1;
         else if (end_of_acknowledge_sequence == 1'b1)
@@ -569,6 +607,8 @@ module KF8259_Control_Logic (
     always_ff @(negedge clock, posedge reset) begin
         if (reset)
             acknowledge_interrupt <= 8'b00000000;
+        else if (write_initial_command_word_1 == 1'b1)
+            acknowledge_interrupt <= 8'b00000000;
         else if (end_of_acknowledge_sequence)
             acknowledge_interrupt <= 8'b00000000;
         else if (end_of_poll_command == 1'b1)
@@ -584,6 +624,8 @@ module KF8259_Control_Logic (
 
     always_ff @(negedge clock, posedge reset) begin
         if (reset)
+            interrupt_when_ack1 <= 8'b00000000;
+        else if (write_initial_command_word_1 == 1'b1)
             interrupt_when_ack1 <= 8'b00000000;
         else if (control_state == ACK1)
             interrupt_when_ack1 <= interrupt;
