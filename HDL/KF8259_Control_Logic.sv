@@ -388,7 +388,7 @@ module KF8259_Control_Logic (
             interrupt_mask <= 8'b11111111;
         else if (write_initial_command_word_1 == 1'b1)
             interrupt_mask <= 8'b11111111;
-        else if ((write_operation_control_word_1_registers == 1'b1) && (enable_special_mask_mode == 1'b0))
+        else if ((write_operation_control_word_1_registers == 1'b1) && (special_mask_mode == 1'b0))
             interrupt_mask <= internal_data_bus;
         else
             interrupt_mask <= interrupt_mask;
@@ -400,9 +400,9 @@ module KF8259_Control_Logic (
             interrupt_special_mask <= 8'b00000000;
         else if (write_initial_command_word_1 == 1'b1)
             interrupt_special_mask <= 8'b00000000;
-        else if ((enable_special_mask_mode == 1'b1) && (special_mask_mode == 1'b0))
+        else if (special_mask_mode == 1'b0)
             interrupt_special_mask <= 8'b00000000;
-        else if ((enable_special_mask_mode == 1'b1) && (write_operation_control_word_1_registers  == 1'b1))
+        else if (write_operation_control_word_1_registers  == 1'b1)
             interrupt_special_mask <= internal_data_bus;
         else
             interrupt_special_mask <= interrupt_special_mask;
@@ -470,19 +470,15 @@ module KF8259_Control_Logic (
     // ESMM / SMM
     always_ff @(negedge clock, posedge reset) begin
         if (reset) begin
-            enable_special_mask_mode <= 1'b0;
             special_mask_mode        <= 1'b0;
         end
         else if (write_initial_command_word_1 == 1'b1) begin
-            enable_special_mask_mode <= 1'b0;
             special_mask_mode        <= 1'b0;
         end
-        else if (write_operation_control_word_3_registers == 1'b1) begin
-            enable_special_mask_mode <= internal_data_bus[6];
+        else if ((write_operation_control_word_3_registers == 1'b1) && (internal_data_bus[6] == 1'b1)) begin
             special_mask_mode        <= internal_data_bus[5];
         end
         else begin
-            enable_special_mask_mode <= enable_special_mask_mode;
             special_mask_mode        <= special_mask_mode;
         end
     end
